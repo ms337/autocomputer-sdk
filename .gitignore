@@ -1,3 +1,6 @@
+.venv
+
+
 # Python
 __pycache__
 *.pyc
@@ -21,3 +24,12 @@ dist
 *.egg-info/
 
 .env
+
+# Ruff
+.ruff_cache/
+
+# Pytest
+.pytest_cache/
+
+# Pyright
+.pyrightcache/

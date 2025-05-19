@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autocomputer-sdk"
-version = "0.4.0"
+version = "0.5.0"
 description = "Python SDK for AutoComputer Flow API"
 readme = "README.md"
 authors = [
@@ -13,10 +13,8 @@ authors = [
 license = "MIT"
 license-files = ["LICENSE"]
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -26,13 +24,9 @@ keywords = ["autocomputer", "ai", "workflow", "api", "client", "sdk"]
 dependencies = [
     "httpx>=0.23.0",
     "pydantic>=2.0.0",
+    "python-dotenv>=0.9.9"
 ]
-requires-python = ">=3.9"
-
-[project.optional-dependencies]
-examples = [
-    "python-dotenv>=0.9.9",
-]
+requires-python = ">=3.12"
 
 [project.urls]
 "Homepage" = "https://autocomputer.ai"
