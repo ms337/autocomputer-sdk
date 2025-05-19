@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autocomputer-sdk"
+version = "0.4.0"
+description = "Python SDK for AutoComputer Flow API"
+readme = "README.md"
+authors = [
+    {name = "AutoComputer", email = "madhav@autocomputer.ai"}
+]
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["autocomputer", "ai", "workflow", "api", "client", "sdk"]
+dependencies = [
+    "httpx>=0.23.0",
+    "pydantic>=2.0.0",
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+examples = [
+    "python-dotenv>=0.9.9",
+]
+
+[project.urls]
+"Homepage" = "https://autocomputer.ai"
+"Bug Tracker" = "https://github.com/autocomputer-ai/sdk/issues"
+"Documentation" = "https://docs.autocomputer.ai"
+"Source Code" = "https://github.com/autocomputer-ai/sdk"
+
+[tool.setuptools]
+# auto-discovery is on
+
+[tool.setuptools.package-data]
+autocomputer_sdk = ["py.typed"]

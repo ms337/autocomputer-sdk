@@ -1,0 +1,23 @@
+# Python
+__pycache__
+*.pyc
+
+# Virtual environment
+venv
+
+# Build
+build
+dist
+.eggs
+
+# IDE
+.idea
+.vscode
+
+# Other
+*.log
+*.lock
+
+*.egg-info/
+
+.env
