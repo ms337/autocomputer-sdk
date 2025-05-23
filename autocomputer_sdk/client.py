@@ -20,7 +20,11 @@ from typing import (
 
 import httpx
 from autocomputer_sdk.types.computer import (
-    RunComputer,
+    ListedRunningComputer,
+    GetRunningComputer,
+    DeletedComputer,
+    RunningComputer,
+    UploadedFileResult,
 )
 from autocomputer_sdk.types.workflow import WorkflowSummary, Workflow
 from autocomputer_sdk.types.messages.response import (
@@ -30,9 +34,11 @@ from autocomputer_sdk.types.messages.response import (
     RunAssistantMessage,
     RunErrorMessage,
     RunCompletedMessage,
+    UploadedFileResponse,
 )
 from autocomputer_sdk.types.messages.request import (
     CreateRunRequest,
+    UploadDataToFileRequest,
 )
 
 
@@ -70,7 +76,7 @@ class WorkflowsNamespace(BaseNamespace):
 
     async def get(
         self, workflow_id: str, timeout: Optional[float] = None
-    ) -> Dict[str, Any]:  # Workflow
+    ) -> Workflow:  # Workflow
         """Get a specific workflow by ID."""
         async with httpx.AsyncClient(
             follow_redirects=True,
@@ -81,7 +87,7 @@ class WorkflowsNamespace(BaseNamespace):
                 headers=self.headers,
             )
             response.raise_for_status()
-            return response.json()
+            return Workflow.model_validate(response.json())
 
     async def save(
         self, workflow: Dict[str, Any], user_id: Optional[str] = None
@@ -117,6 +123,143 @@ class WorkflowsNamespace(BaseNamespace):
             return True
 
 
+# ----- Computers Namespace -----
+
+
+class ComputerNamespace(BaseNamespace):
+    """Namespace for remote computer operations."""
+
+    async def list(
+        self, timeout: Optional[float] = None
+    ) -> List[ListedRunningComputer]:
+        """List all available remote computers for the user."""
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout,
+        ) as client:
+            response = await client.get(
+                f"{self.base_url}/computers/", headers=self.headers
+            )
+            response.raise_for_status()
+            data = response.json()
+            return [
+                ListedRunningComputer.model_validate(computer)
+                for computer in data["computers"]
+            ]
+
+    async def get(
+        self, computer_id: str, timeout: Optional[float] = None
+    ) -> GetRunningComputer:
+        """Get detailed information about a running computer by ID."""
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout,
+        ) as client:
+            response = await client.get(
+                f"{self.base_url}/computers/{computer_id}/",
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return GetRunningComputer.model_validate(data)
+
+    async def start(
+        self,
+        config: Dict[str, Any],
+        template_id: Optional[str] = None,
+        sandbox_id: Optional[str] = None,
+        vnc_requires_auth: bool = False,
+        vnc_view_only: bool = False,
+        timeout: Optional[float] = None,
+    ) -> RunningComputer:
+        """Start a new remote computer with the given configuration.
+
+        Args:
+            config: Configuration for the remote computer
+            template_id: Optional template ID to use for the computer
+            vnc_requires_auth: Whether VNC requires authentication
+            vnc_view_only: Whether VNC is view-only
+            timeout: Optional timeout for the HTTP request
+
+        Returns:
+            A RunningComputer instance with connection details
+        """
+        payload = {
+            "config": config,
+            "vnc_requires_auth": vnc_requires_auth,
+            "vnc_view_only": vnc_view_only,
+        }
+
+        if template_id:
+            payload["template_id"] = template_id
+
+        if sandbox_id:
+            payload["sandbox_id"] = sandbox_id
+
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout,
+        ) as client:
+            response = await client.post(
+                f"{self.base_url}/computers/",
+                headers=self.headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return RunningComputer.model_validate(data["computer"])
+
+    async def delete(
+        self, computer_id: str, timeout: Optional[float] = None
+    ) -> DeletedComputer:
+        """Delete a remote computer by ID."""
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout,
+        ) as client:
+            response = await client.delete(
+                f"{self.base_url}/computers/{computer_id}",
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            # Response for delete returns a DeleteResponse with message and computer_id
+            data = response.json()
+            return DeletedComputer.model_validate(data)
+
+    async def upload_data_to_file(
+        self,
+        computer_id: str,
+        file_path: str,
+        contents: str,
+        timeout: Optional[float] = None,
+    ) -> UploadedFileResponse:
+        """Upload data to a file on a remote computer.
+
+        Args:
+            computer_id: The ID of the computer to upload the data to
+            file_path: The path where the file should be created/written
+            contents: The data to upload as a string
+            timeout: Optional timeout for the HTTP request
+
+        Returns:
+            UploadedFileResponse containing the result of the upload operation
+        """
+        payload = UploadDataToFileRequest(file_path=file_path, contents=contents)
+
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout,
+        ) as client:
+            response = await client.post(
+                f"{self.base_url}/computers/{computer_id}/upload",
+                headers=self.headers,
+                json=payload.model_dump(),
+            )
+            response.raise_for_status()
+            data = response.json()
+            return UploadedFileResponse.model_validate(data)
+
+
 # ----- Run Namespace -----
 
 
@@ -125,20 +268,22 @@ class RunNamespace(BaseNamespace):
 
     async def astream(
         self,
-        remote_computer: RunComputer,
+        remote_computer: RunningComputer,
         workflow: Workflow,
         user_inputs: Dict[str, Any],
+        timeout: Optional[float] = None,
     ) -> AsyncIterator[RunMessage]:
         """
         Run a workflow with async streaming responses.
 
         Args:
-            workflow_id: ID of the workflow to run
-            user_inputs: Optional inputs for the workflow
-            remote_computer: Optional configuration for the remote computer
+            remote_computer: The RunComputer instance to execute the workflow on
+            workflow: The Workflow object containing the workflow definition
+            user_inputs: User inputs for the workflow execution
+            timeout: Optional timeout for the initial HTTP connection (streaming has no timeout)
 
         Returns:
-            AsyncIterator of RunMessage objects
+            AsyncIterator of RunMessage objects representing the streaming response
         """
 
         url = f"{self.base_url}/runs"
@@ -146,11 +291,14 @@ class RunNamespace(BaseNamespace):
             remote_computer=remote_computer, workflow=workflow, user_inputs=user_inputs
         ).model_dump()
 
+        # Use None timeout for streaming connection to prevent timeouts during long-running workflows
         async with httpx.AsyncClient(timeout=None, follow_redirects=True) as client:
             async with client.stream(
                 "POST", url, headers=self.headers, json=payload
             ) as response:
                 response.raise_for_status()
+                _ = response.headers.get("X-Session-ID")
+
                 async for line in response.aiter_lines():
                     if not line.strip():
                         continue
@@ -160,21 +308,31 @@ class RunNamespace(BaseNamespace):
                         message_type = message_data.get("type")
 
                         if message_type == "run_started":
-                            yield RunStartedMessage()
+                            yield RunStartedMessage(type="run_started")
                         elif message_type == "sequence_status":
                             yield RunSequenceStatusMessage(
+                                type="sequence_status",
                                 sequence_id=message_data["sequence_id"],
                                 success=message_data["success"],
                                 error=message_data.get("error"),
                             )
                         elif message_type == "assistant":
-                            yield RunAssistantMessage(content=message_data["content"])
+                            yield RunAssistantMessage(
+                                type="assistant", content=message_data["content"]
+                            )
                         elif message_type == "error":
-                            yield RunErrorMessage(error=message_data["error"])
+                            yield RunErrorMessage(
+                                type="error", error=message_data["error"]
+                            )
                         elif message_type == "run_completed":
-                            yield RunCompletedMessage()
+                            yield RunCompletedMessage(
+                                type="run_completed",
+                                content=message_data.get("content", ""),
+                            )
                     except json.JSONDecodeError:
-                        yield RunErrorMessage(error=f"Failed to decode message: {line}")
+                        yield RunErrorMessage(
+                            type="error", error=f"Failed to decode message: {line}"
+                        )
 
 
 # ----- Main Client Class -----
@@ -207,3 +365,4 @@ class AutoComputerClient:
         # Initialize namespaces
         self.workflows = WorkflowsNamespace(self)
         self.run = RunNamespace(self)
+        self.computer = ComputerNamespace(self)

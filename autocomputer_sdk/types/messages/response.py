@@ -1,5 +1,11 @@
 from pydantic import BaseModel
 from typing import Any, Dict, Literal, Optional, Union
+from autocomputer_sdk.types.computer import UploadedFileResult
+
+
+class UploadedFileResponse(BaseModel):
+    """Response after uploading data to a file on a remote computer."""
+    result: UploadedFileResult
 
 
 # ----- Response Message Types -----
