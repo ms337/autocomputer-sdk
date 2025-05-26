@@ -28,7 +28,7 @@ class RunAssistantMessage(BaseModel):
     """Message containing assistant output."""
 
     type: Literal["assistant"] = "assistant"
-    content: Dict[str, Any]  # ACContentBlock
+    content: Dict[str, Any]  # ACContentBlock - keeping as Dict for SDK simplicity
 
 
 class RunErrorMessage(BaseModel):
@@ -42,7 +42,6 @@ class RunCompletedMessage(BaseModel):
     """Message indicating a run has completed successfully."""
 
     type: Literal["run_completed"] = "run_completed"
-    content: str = "Workflow completed successfully"
 
 
 # Union type for all possible message types

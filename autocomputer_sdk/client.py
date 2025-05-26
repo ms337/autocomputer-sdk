@@ -24,7 +24,6 @@ from autocomputer_sdk.types.computer import (
     GetRunningComputer,
     DeletedComputer,
     RunningComputer,
-    UploadedFileResult,
 )
 from autocomputer_sdk.types.workflow import WorkflowSummary, Workflow
 from autocomputer_sdk.types.messages.response import (
@@ -65,7 +64,7 @@ class WorkflowsNamespace(BaseNamespace):
             timeout=timeout,
         ) as client:
             response = await client.get(
-                f"{self.base_url}/provision/workflows", headers=self.headers
+                f"{self.base_url}/workflows", headers=self.headers
             )
             response.raise_for_status()
             data = response.json()
@@ -83,7 +82,7 @@ class WorkflowsNamespace(BaseNamespace):
             timeout=timeout,
         ) as client:
             response = await client.get(
-                f"{self.base_url}/provision/workflows/{workflow_id}",
+                f"{self.base_url}/workflows/{workflow_id}",
                 headers=self.headers,
             )
             response.raise_for_status()
@@ -99,7 +98,7 @@ class WorkflowsNamespace(BaseNamespace):
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/provision/workflows",
+                f"{self.base_url}/workflows",
                 headers=self.headers,
                 json=workflow,
                 params=params,
@@ -115,7 +114,7 @@ class WorkflowsNamespace(BaseNamespace):
 
         async with httpx.AsyncClient() as client:
             response = await client.delete(
-                f"{self.base_url}/provision/workflows/{workflow_id}",
+                f"{self.base_url}/workflows/{workflow_id}",
                 headers=self.headers,
                 params=params,
             )
@@ -325,10 +324,7 @@ class RunNamespace(BaseNamespace):
                                 type="error", error=message_data["error"]
                             )
                         elif message_type == "run_completed":
-                            yield RunCompletedMessage(
-                                type="run_completed",
-                                content=message_data.get("content", ""),
-                            )
+                            yield RunCompletedMessage(type="run_completed")
                     except json.JSONDecodeError:
                         yield RunErrorMessage(
                             type="error", error=f"Failed to decode message: {line}"

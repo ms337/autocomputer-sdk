@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, field_validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 # ----- Type Definitions -----
 
@@ -16,9 +16,9 @@ class ScreenConfig(BaseModel):
 class OSName(str, Enum):
     """Operating system names supported by the platform."""
 
+    DARWIN = "darwin"
+    WIN32 = "win32"
     LINUX = "linux"
-    MACOS = "macos"
-    WINDOWS = "windows"
 
 
 class Config(BaseModel):
@@ -66,10 +66,6 @@ class RunningComputer(BaseModel):
 
 class UploadedFileResult(BaseModel):
     """Result of uploading data to a file on a remote computer."""
+
     computer_id: str
     file_path: str
-
-
-
-
-
