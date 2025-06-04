@@ -15,3 +15,8 @@ class UploadDataToFileRequest(BaseModel):
 
     file_path: str
     contents: str
+
+
+class DownloadFileRequest(BaseModel):
+    remote_path: str
+    max_size_bytes: int = 10 * 1024 * 1024  # 10MB

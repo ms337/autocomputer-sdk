@@ -1,11 +1,25 @@
 from pydantic import BaseModel
 from typing import Any, Dict, Literal, Optional, Union
-from autocomputer_sdk.types.computer import UploadedFileResult
+from autocomputer_sdk.types.computer import UploadedFileResult, DownloadedFileResult
 
 
 class UploadedFileResponse(BaseModel):
     """Response after uploading data to a file on a remote computer."""
+
     result: UploadedFileResult
+
+
+class DownloadedFileResponse(BaseModel):
+    """Response after downloading a file from a remote computer."""
+
+    result: DownloadedFileResult
+
+
+class ComputerStatusResponse(BaseModel):
+    """Response for checking if a computer is running."""
+
+    computer_id: str
+    is_running: bool
 
 
 # ----- Response Message Types -----

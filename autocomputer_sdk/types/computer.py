@@ -69,3 +69,9 @@ class UploadedFileResult(BaseModel):
 
     computer_id: str
     file_path: str
+
+
+class DownloadedFileResult(BaseModel):
+    computer_id: str
+    file_path: str
+    contents: str

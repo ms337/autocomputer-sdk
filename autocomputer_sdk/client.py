@@ -19,6 +19,7 @@ from typing import (
 )
 
 import httpx
+
 from autocomputer_sdk.types.computer import (
     ListedRunningComputer,
     GetRunningComputer,
@@ -34,10 +35,13 @@ from autocomputer_sdk.types.messages.response import (
     RunErrorMessage,
     RunCompletedMessage,
     UploadedFileResponse,
+    DownloadedFileResponse,
+    ComputerStatusResponse,
 )
 from autocomputer_sdk.types.messages.request import (
     CreateRunRequest,
     UploadDataToFileRequest,
+    DownloadFileRequest,
 )
 
 
@@ -257,6 +261,57 @@ class ComputerNamespace(BaseNamespace):
             response.raise_for_status()
             data = response.json()
             return UploadedFileResponse.model_validate(data)
+
+    async def download_file(
+        self,
+        computer_id: str,
+        remote_path: str,
+        max_size_bytes: int = 10 * 1024 * 1024,
+        timeout: Optional[float] = None,
+    ) -> DownloadedFileResponse:
+        """Download a file from a remote computer."""
+
+        payload = DownloadFileRequest(
+            remote_path=remote_path,
+            max_size_bytes=max_size_bytes,
+        )
+
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout,
+        ) as client:
+            response = await client.post(
+                f"{self.base_url}/computers/{computer_id}/download",
+                headers=self.headers,
+                json=payload.model_dump(),
+            )
+            response.raise_for_status()
+            data = response.json()
+            return DownloadedFileResponse.model_validate(data)
+
+    async def is_running(
+        self, computer_id: str, timeout: Optional[float] = None
+    ) -> ComputerStatusResponse:
+        """Check if a remote computer is running.
+
+        Args:
+            computer_id: The ID of the computer to check
+            timeout: Optional timeout for the HTTP request
+
+        Returns:
+            ComputerIsRunningResponse with computer_id and is_running status
+        """
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout,
+        ) as client:
+            response = await client.get(
+                f"{self.base_url}/computers/{computer_id}/status",
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return ComputerStatusResponse.model_validate(data)
 
 
 # ----- Run Namespace -----
