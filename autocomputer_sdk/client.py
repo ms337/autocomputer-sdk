@@ -7,6 +7,7 @@ Features:
 1. Namespaced routes (client.workflows.list(), client.run.astream())
 2. Strong typing for request/response objects
 3. Async streaming support
+4. Local VM execution via WebSocket
 """
 
 import json
@@ -19,7 +20,6 @@ from typing import (
 )
 
 import httpx
-
 from autocomputer_sdk.types.computer import (
     ListedRunningComputer,
     GetRunningComputer,
@@ -43,6 +43,7 @@ from autocomputer_sdk.types.messages.request import (
     UploadDataToFileRequest,
     DownloadFileRequest,
 )
+from autocomputer_sdk.local_namespaces import LocalNamespace
 
 
 # ----- Base Namespace Class -----
@@ -396,6 +397,8 @@ class AutoComputerClient:
     - client.workflows.list() - List all workflows
     - client.workflows.get(id) - Get a workflow by ID
     - client.run.astream() - Run a workflow with streaming responses
+    - client.local.vm.start_vbox() - Start a local VirtualBox VM
+    - client.local.connect_and_run_workflow() - Run workflow on local VM
     """
 
     def __init__(self, base_url: str, api_key: str):
@@ -417,3 +420,25 @@ class AutoComputerClient:
         self.workflows = WorkflowsNamespace(self)
         self.run = RunNamespace(self)
         self.computer = ComputerNamespace(self)
+        self.local = LocalNamespace(self)  # New local namespace
+        
+    def set_local_vm_manager(self, vm_manager):
+        """Set the VM manager for local execution.
+        
+        Args:
+            vm_manager: Instance of LocalVMManager for managing VirtualBox VMs
+            
+        Example:
+            from autocomputer_sdk.vm_manager import LocalVMManager
+            
+            client = AutoComputerClient(base_url="...", api_key="...")
+            vm_manager = LocalVMManager()
+            client.set_local_vm_manager(vm_manager)
+        """
+        self.local.set_vm_manager(vm_manager)
+        
+    def cleanup(self):
+        """Clean up any resources (like VM manager tunnels)."""
+        if hasattr(self.local.vm, 'vm_manager') and self.local.vm.vm_manager:
+            if hasattr(self.local.vm.vm_manager, 'cleanup'):
+                self.local.vm.vm_manager.cleanup()

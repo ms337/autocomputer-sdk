@@ -24,7 +24,8 @@ keywords = ["autocomputer", "ai", "workflow", "api", "client", "sdk"]
 dependencies = [
     "httpx>=0.23.0",
     "pydantic>=2.0.0",
-    "python-dotenv>=0.9.9"
+    "python-dotenv>=0.9.9",
+    "aiohttp>=3.8.0",
 ]
 requires-python = ">=3.9"
 
