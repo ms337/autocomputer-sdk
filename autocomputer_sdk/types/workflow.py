@@ -1,5 +1,4 @@
 from enum import Enum
-
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel
@@ -107,7 +106,7 @@ class Workflow(BaseModel):
         """Loads a Workflow instance from a JSON file."""
         import json
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
         return cls.from_dict(data)
 

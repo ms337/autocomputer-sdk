@@ -1,7 +1,9 @@
+from typing import Any, Dict
+
+from pydantic import BaseModel
+
 from autocomputer_sdk.types.computer import RunningComputer
 from autocomputer_sdk.types.workflow import Workflow
-from pydantic import BaseModel
-from typing import Dict, Any
 
 
 class CreateRunRequest(BaseModel):
@@ -16,7 +18,6 @@ class UploadDataToFileRequest(BaseModel):
     file_path: str
     contents: str
 
-
 class DownloadFileRequest(BaseModel):
     remote_path: str
-    max_size_bytes: int = 10 * 1024 * 1024  # 10MB
+    max_size_bytes: int = 10 * 1024 * 1024 # 10MB

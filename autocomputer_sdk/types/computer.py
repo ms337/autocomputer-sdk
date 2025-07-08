@@ -1,6 +1,7 @@
 from enum import Enum
-from pydantic import BaseModel, field_validator
 from typing import List, Optional
+
+from pydantic import BaseModel, field_validator
 
 # ----- Type Definitions -----
 
@@ -75,3 +76,10 @@ class DownloadedFileResult(BaseModel):
     computer_id: str
     file_path: str
     contents: str
+
+
+class ComputerStatusResponse(BaseModel):
+    """Response for checking if a computer is running."""
+
+    computer_id: str
+    is_running: bool

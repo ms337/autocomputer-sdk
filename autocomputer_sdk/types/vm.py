@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Literal, Optional
+
 from pydantic import BaseModel
 
 
@@ -30,4 +31,4 @@ class VMConfig(BaseModel):
     screen_width: int = 1920
     screen_height: int = 1080
     display_num: int = 0
-    tool_server_url: str = "http://localhost:3333" 
+    tool_server_url: str = "http://localhost:3333"

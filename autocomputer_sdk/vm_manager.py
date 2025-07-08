@@ -18,17 +18,17 @@ from autocomputer_sdk.types.computer import (
 
 class TunnelManager:
     """Placeholder tunnel manager - implement as needed for your use case."""
-    
+
     def create_tunnel(self, port: int, tunnel_name: str) -> str:
         """Create a tunnel and return the tunneled URL."""
         # This is a placeholder - implement actual tunneling logic
         print(f"Creating tunnel for port {port} with name {tunnel_name}")
         return f"http://localhost:{port}"
-    
+
     def stop_tunnel(self, tunnel_name: str) -> None:
         """Stop a tunnel."""
         print(f"Stopping tunnel: {tunnel_name}")
-    
+
     def cleanup(self) -> None:
         """Clean up all tunnels."""
         print("Cleaning up all tunnels")
@@ -52,7 +52,7 @@ class LocalVMManager:
         self.default_vnc_requires_auth = default_vnc_requires_auth
         self.default_vnc_view_only = default_vnc_view_only
         self.enable_tunneling = enable_tunneling
-        
+
         # Initialize tunnel manager if tunneling is enabled
         self.tunnel_manager = TunnelManager() if enable_tunneling else None
 
@@ -109,13 +109,13 @@ class LocalVMManager:
             self._execute_vbox_command([
                 "startvm", vm_name, "--type", "headless"
             ])
-            
+
             # Wait for VM to start up
             time.sleep(15)
-            
+
             if not self._is_vm_running(vm_name):
                 raise RuntimeError(f"VM {vm_name} failed to start")
-                
+
             print(f"VM started successfully: {vm_name}")
         except RuntimeError as e:
             if "VBOX_E_INVALID_OBJECT_STATE" in str(e):
@@ -141,7 +141,7 @@ class LocalVMManager:
                 "guestproperty", "get", vm_name,
                 "/VirtualBox/GuestInfo/Net/0/V4/IP"
             ])
-            
+
             # Extract IP from output
             import re
             ip_match = re.search(r'Value: (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', output)
@@ -159,18 +159,18 @@ class LocalVMManager:
     ) -> RunningComputer:
         """
         Start a local VM and return a RunningComputer object.
-        
+
         Args:
             vm_name: Name of the VirtualBox VM to start
             config: Configuration for the computer
             tool_server_port: Port the tool server runs on (default: 3333)
-            
+
         Returns:
             RunningComputer object configured for the local VM
         """
         # Generate a unique computer ID
         computer_id = str(uuid.uuid4())
-        
+
         print(
             f"Starting local VM - computer_id: {computer_id}, vm_name: {vm_name}"
         )
@@ -180,7 +180,7 @@ class LocalVMManager:
 
         # Determine tool server URL
         tool_server_url = self.default_tool_server_url
-        
+
         if self.enable_tunneling and self.tunnel_manager:
             # Create tunnel for tool server
             tunnel_name = f"{vm_name}_tool_server"
@@ -205,12 +205,12 @@ class LocalVMManager:
     def stop_vm(self, vm_name: str) -> None:
         """Stop a local VM and cleanup tunnels."""
         print(f"Stopping local VM: {vm_name}")
-        
+
         # Stop associated tunnels if tunnel manager is available
         if self.tunnel_manager:
             tunnel_name = f"{vm_name}_tool_server"
             self.tunnel_manager.stop_tunnel(tunnel_name)
-        
+
         # Stop the VM
         self._stop_vm(vm_name)
 
@@ -226,4 +226,4 @@ class LocalVMManager:
         """Cleanup all resources including tunnels."""
         print("Cleaning up LocalVMManager resources")
         if self.tunnel_manager:
-            self.tunnel_manager.cleanup() 
+            self.tunnel_manager.cleanup()

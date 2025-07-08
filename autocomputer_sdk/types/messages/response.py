@@ -1,6 +1,9 @@
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel
-from typing import Any, Dict, Literal, Optional, Union
-from autocomputer_sdk.types.computer import UploadedFileResult, DownloadedFileResult
+
+from autocomputer_sdk.types.computer import DownloadedFileResult, UploadedFileResult
+from autocomputer_sdk.types.messages.content_blocks import ACContentBlock
 
 
 class UploadedFileResponse(BaseModel):
@@ -15,18 +18,18 @@ class DownloadedFileResponse(BaseModel):
     result: DownloadedFileResult
 
 
-class ComputerStatusResponse(BaseModel):
-    """Response for checking if a computer is running."""
-
-    computer_id: str
-    is_running: bool
-
-
 # ----- Response Message Types -----
 class RunStartedMessage(BaseModel):
     """Message indicating a run has started."""
 
     type: Literal["run_started"] = "run_started"
+
+
+class RunSequenceStartedMessage(BaseModel):
+    """Message indicating a sequence has started."""
+
+    type: Literal["sequence_started"] = "sequence_started"
+    sequence_id: str
 
 
 class RunSequenceStatusMessage(BaseModel):
@@ -42,7 +45,7 @@ class RunAssistantMessage(BaseModel):
     """Message containing assistant output."""
 
     type: Literal["assistant"] = "assistant"
-    content: Dict[str, Any]  # ACContentBlock - keeping as Dict for SDK simplicity
+    content: ACContentBlock
 
 
 class RunErrorMessage(BaseModel):
@@ -61,6 +64,7 @@ class RunCompletedMessage(BaseModel):
 # Union type for all possible message types
 RunMessage = Union[
     RunStartedMessage,
+    RunSequenceStartedMessage,
     RunSequenceStatusMessage,
     RunAssistantMessage,
     RunErrorMessage,
