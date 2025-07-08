@@ -1,0 +1,50 @@
+{
+    "schema_version": "v1",
+    "workflow_title": "Single Prompt Task",
+    "workflow_description": "This workflow tests a single prompt",
+    "workflow_computer": {
+      "os": "darwin",
+      "computerName": "ac-ubuntu-v7",
+      "computerType": "remote",
+      "ovaFilePath": "remote",
+      "screenConfig": {
+        "width": 1440,
+        "height": 900,
+        "display_num": 0
+      }
+    },
+    "workflow_inputs": [
+      {
+        "input_title": "Task",
+        "input_description": "The task to perform",
+        "input_type": "string",
+        "input_name": "task",
+        "default_value": "Open HN"
+      }
+    ],
+    "sequences": [
+      {
+        "sequence_title": "Perform Task",
+        "sequence_id": "perform_task",
+        "sequence_description": "This sequence is a user instruction for a task that needs to be completed.",
+        "sequence_inputs": [
+          "task"
+        ],
+        "steps": [
+          {
+            "title": "Perform Task",
+            "actions": [
+              "Complete this task: {task}"
+            ]   
+          }
+        ]
+      }
+    ],
+    "workflow_execution_instructions": {
+      "instructions": [],
+      "code": [
+        "async def run_this_workflow(sequences, task):",
+        "  await run_sequence(sequences, sequence_id='perform_task', user_inputs={'task': task})"
+      ]
+    }
+  }

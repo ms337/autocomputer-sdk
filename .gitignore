@@ -34,7 +34,4 @@ dist
 # Pyright
 .pyrightcache/
 
-
-examples/
-
 .DS_Store
