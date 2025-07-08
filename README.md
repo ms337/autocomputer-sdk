@@ -1,17 +1,8 @@
 # AutoComputer SDK
 
-[![PyPI version](https://img.shields.io/pypi/v/autocomputer-sdk.svg)](https://pypi.org/project/autocomputer-sdk/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/autocomputer-sdk.svg)](https://pypi.org/project/autocomputer-sdk/)
-[![License](https://img.shields.io/github/license/autocomputer-ai/sdk.svg)](https://github.com/autocomputer-ai/sdk/blob/main/LICENSE)
+The Python SDK to use AutoComputer for performing automations described through natural language defined workflows using AutoComputer's computer use agent. 
 
-A well-structured Python SDK for the AutoComputer Flow API with namespaced routes and strong typing.
-
-## Features
-
-- 🔀 **Namespaced routes**: Access API functionality using intuitive namespaces (e.g., `client.workflows.list()`)
-- 📊 **Strong typing**: Fully typed request and response objects for better IDE support and error checking
-- 🔄 **Async streaming support**: Real-time updates as your workflows execute
-- 🛠️ **Modern Python**: Built with modern Python practices and type annotations
+This SDK let's you provision computers and run automation workflows easily on them.
 
 ## Installation
 
