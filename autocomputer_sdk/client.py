@@ -20,31 +20,32 @@ from typing import (
 )
 
 import httpx
+
+from autocomputer_sdk.local_namespaces import LocalNamespace
 from autocomputer_sdk.types.computer import (
-    ListedRunningComputer,
-    GetRunningComputer,
-    DeletedComputer,
-    RunningComputer,
-)
-from autocomputer_sdk.types.workflow import WorkflowSummary, Workflow
-from autocomputer_sdk.types.messages.response import (
-    RunMessage,
-    RunStartedMessage,
-    RunSequenceStatusMessage,
-    RunAssistantMessage,
-    RunErrorMessage,
-    RunCompletedMessage,
-    UploadedFileResponse,
-    DownloadedFileResponse,
     ComputerStatusResponse,
+    DeletedComputer,
+    GetRunningComputer,
+    ListedRunningComputer,
+    RunningComputer,
 )
 from autocomputer_sdk.types.messages.request import (
     CreateRunRequest,
-    UploadDataToFileRequest,
     DownloadFileRequest,
+    UploadDataToFileRequest,
 )
-from autocomputer_sdk.local_namespaces import LocalNamespace
-
+from autocomputer_sdk.types.messages.response import (
+    DownloadedFileResponse,
+    RunAssistantMessage,
+    RunCompletedMessage,
+    RunErrorMessage,
+    RunMessage,
+    RunSequenceStartedMessage,
+    RunSequenceStatusMessage,
+    RunStartedMessage,
+    UploadedFileResponse,
+)
+from autocomputer_sdk.types.workflow import Workflow, WorkflowSummary
 
 # ----- Base Namespace Class -----
 
@@ -364,6 +365,11 @@ class RunNamespace(BaseNamespace):
 
                         if message_type == "run_started":
                             yield RunStartedMessage(type="run_started")
+                        elif message_type == "sequence_started":
+                            yield RunSequenceStartedMessage(
+                                type="sequence_started",
+                                sequence_id=message_data["sequence_id"]
+                            )
                         elif message_type == "sequence_status":
                             yield RunSequenceStatusMessage(
                                 type="sequence_status",
@@ -421,22 +427,22 @@ class AutoComputerClient:
         self.run = RunNamespace(self)
         self.computer = ComputerNamespace(self)
         self.local = LocalNamespace(self)  # New local namespace
-        
+
     def set_local_vm_manager(self, vm_manager):
         """Set the VM manager for local execution.
-        
+
         Args:
             vm_manager: Instance of LocalVMManager for managing VirtualBox VMs
-            
+
         Example:
             from autocomputer_sdk.vm_manager import LocalVMManager
-            
+
             client = AutoComputerClient(base_url="...", api_key="...")
             vm_manager = LocalVMManager()
             client.set_local_vm_manager(vm_manager)
         """
         self.local.set_vm_manager(vm_manager)
-        
+
     def cleanup(self):
         """Clean up any resources (like VM manager tunnels)."""
         if hasattr(self.local.vm, 'vm_manager') and self.local.vm.vm_manager:

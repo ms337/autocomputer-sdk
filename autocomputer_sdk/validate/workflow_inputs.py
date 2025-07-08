@@ -1,5 +1,6 @@
-from typing import List, Dict, Any
-from autocomputer_sdk.types.workflow import WorkflowInput, Workflow, InputType
+from typing import Any, Dict, List
+
+from autocomputer_sdk.types.workflow import InputType, Workflow, WorkflowInput
 
 
 def validate_user_inputs_for_workflow(

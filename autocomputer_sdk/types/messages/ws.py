@@ -1,11 +1,12 @@
 """WebSocket message types for AutoComputer Flow API communication."""
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
+
 from pydantic import BaseModel
 
 from autocomputer_sdk.types.computer import Config, ScreenConfig
+from autocomputer_sdk.types.messages.content_blocks import ACContentBlock
 from autocomputer_sdk.types.workflow import Workflow
-
 
 # ===== Base Message Types =====
 
@@ -58,37 +59,6 @@ class WorkflowSequenceStatusMessage(BaseMessage):
     sequence_id: str
     success: bool
     error: Optional[str] = None
-
-
-# ===== Assistant Content Blocks =====
-
-class ACTextBlock(BaseModel):
-    """Text content block."""
-    type: Literal["text"] = "text"
-    text: str
-
-
-class ACThinkingBlock(BaseModel):
-    """Thinking content block."""
-    type: Literal["thinking"] = "thinking"
-    thinking: str
-
-
-class ACToolUseBlock(BaseModel):
-    """Tool use content block."""
-    type: Literal["tool_use"] = "tool_use"
-    name: str
-    input: Dict[str, Any]
-
-
-class ACToolUseResultBlock(BaseModel):
-    """Tool use result content block."""
-    type: Literal["tool_use_result"] = "tool_use_result"
-    result: Dict[str, Any]  # ToolResult serialized
-
-
-# Union type for all content blocks
-ACContentBlock = Union[ACTextBlock, ACThinkingBlock, ACToolUseBlock, ACToolUseResultBlock]
 
 
 class AssistantMessage(BaseMessage):
