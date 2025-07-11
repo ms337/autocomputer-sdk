@@ -6,6 +6,8 @@ This SDK let's you provision computers and run automation workflows easily on th
 
 ## Installation
 
+Clone the repo, and then `cd ` into the folder and then run: 
+
 ```bash
 pip install -e .
 ```
