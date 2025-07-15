@@ -75,7 +75,8 @@ class UploadedFileResult(BaseModel):
 class DownloadedFileResult(BaseModel):
     computer_id: str
     file_path: str
-    contents: str
+    contents: str  # Base64 encoded content (files or archives)
+    is_dir: bool = False
 
 
 class ComputerStatusResponse(BaseModel):
