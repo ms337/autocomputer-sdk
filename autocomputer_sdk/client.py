@@ -10,6 +10,7 @@ Features:
 4. Local VM execution via WebSocket
 """
 
+import base64
 import json
 from typing import (
     Any,
@@ -25,9 +26,11 @@ from autocomputer_sdk.local_namespaces import LocalNamespace
 from autocomputer_sdk.types.computer import (
     ComputerStatusResponse,
     DeletedComputer,
+    DownloadedFileResult,
     GetRunningComputer,
     ListedRunningComputer,
     RunningComputer,
+    UploadedFileResult,
 )
 from autocomputer_sdk.types.messages.request import (
     CreateRunRequest,
@@ -268,14 +271,32 @@ class ComputerNamespace(BaseNamespace):
         self,
         computer_id: str,
         remote_path: str,
-        max_size_bytes: int = 10 * 1024 * 1024,
+        is_dir: bool,
+        max_size_bytes: int = 100 * 1024 * 1024,
+        
         timeout: Optional[float] = None,
     ) -> DownloadedFileResponse:
-        """Download a file from a remote computer."""
+        """Download a file or directory from a remote computer.
+        
+        Args:
+            computer_id: The ID of the computer to download from
+            remote_path: The path to the file or directory
+            max_size_bytes: Maximum allowed size (default: 100MB)
+            is_dir: True to download as directory archive, False for single file
+            timeout: Optional timeout for the HTTP request
+            
+        Returns:
+            DownloadedFileResponse with base64 encoded content
+            
+        Note:
+            - All content is returned as base64 encoded bytes
+            - Use save_downloaded_content() helper to save to local files
+        """
 
         payload = DownloadFileRequest(
             remote_path=remote_path,
             max_size_bytes=max_size_bytes,
+            is_dir=is_dir,
         )
 
         async with httpx.AsyncClient(
@@ -290,6 +311,38 @@ class ComputerNamespace(BaseNamespace):
             response.raise_for_status()
             data = response.json()
             return DownloadedFileResponse.model_validate(data)
+
+    def save_downloaded_content(
+        self,
+        download_response: DownloadedFileResponse, 
+        local_path: str
+    ) -> bool:
+        """
+        Save downloaded content to a local file.
+        
+        Args:
+            download_response: The response from download_file()
+            local_path: Local path where to save the content
+            
+        Returns:
+            True if saved successfully, False otherwise
+            
+        Note:
+            - All content is base64 encoded and saved as binary
+            - For directories, use .tar.gz extension
+            - For files, use appropriate extension for the file type
+        """
+        try:
+            result = download_response.result
+            
+            # Decode base64 and save as binary
+            content_bytes = base64.b64decode(result.contents)
+            with open(local_path, 'wb') as f:
+                f.write(content_bytes)
+                
+            return True
+        except Exception:
+            return False
 
     async def is_running(
         self, computer_id: str, timeout: Optional[float] = None

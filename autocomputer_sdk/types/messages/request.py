@@ -20,4 +20,5 @@ class UploadDataToFileRequest(BaseModel):
 
 class DownloadFileRequest(BaseModel):
     remote_path: str
-    max_size_bytes: int = 10 * 1024 * 1024 # 10MB
+    max_size_bytes: int = 100 * 1024 * 1024  # 100MB for both files and archives
+    is_dir: bool = False  # True to download as directory archive
