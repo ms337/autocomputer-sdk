@@ -51,9 +51,9 @@ async def main():
         run_computer: RunningComputer = await client.computer.start(
             config=Config(
                 screen=ScreenConfig(width=1440, height=900, display_num=0), 
-                os_name="linux", 
-                timeout=300
+                os_name="linux"
             ).model_dump(),
+            timeout=300
         )
 
     console.print(f"[green]✅ Computer started:[/green] {run_computer.computer_id}")
