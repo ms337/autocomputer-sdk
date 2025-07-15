@@ -5,8 +5,8 @@
     "workflow_computer": {
       "os": "darwin",
       "computerName": "ac-ubuntu-v7",
-      "computerType": "remote",
-      "ovaFilePath": "remote",
+      "computerType": "remoteDesktop",
+      "ovaFilePath": "remoteDesktop",
       "screenConfig": {
         "width": 1440,
         "height": 900,
