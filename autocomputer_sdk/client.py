@@ -12,6 +12,7 @@ Features:
 
 import base64
 import json
+import asyncio
 from typing import (
     Any,
     AsyncIterator,
@@ -73,7 +74,7 @@ class WorkflowsNamespace(BaseNamespace):
             timeout=timeout,
         ) as client:
             response = await client.get(
-                f"{self.base_url}/workflows", headers=self.headers
+                f"{self.base_url}/workflows/", headers=self.headers
             )
             response.raise_for_status()
             data = response.json()
@@ -107,7 +108,7 @@ class WorkflowsNamespace(BaseNamespace):
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/workflows",
+                f"{self.base_url}/workflows/",
                 headers=self.headers,
                 json=workflow,
                 params=params,
@@ -381,6 +382,8 @@ class RunNamespace(BaseNamespace):
         workflow: Workflow,
         user_inputs: Dict[str, Any],
         timeout: Optional[float] = None,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
     ) -> AsyncIterator[RunMessage]:
         """
         Run a workflow with async streaming responses.
@@ -389,7 +392,9 @@ class RunNamespace(BaseNamespace):
             remote_computer: The RunComputer instance to execute the workflow on
             workflow: The Workflow object containing the workflow definition
             user_inputs: User inputs for the workflow execution
-            timeout: Optional timeout for the initial HTTP connection (streaming has no timeout)
+            timeout: Optional timeout for the initial HTTP connection (default: 60s)
+            max_retries: Maximum number of retry attempts for connection errors (default: 3)
+            retry_delay: Delay between retry attempts in seconds (default: 1.0s)
 
         Returns:
             AsyncIterator of RunMessage objects representing the streaming response
@@ -400,50 +405,115 @@ class RunNamespace(BaseNamespace):
             remote_computer=remote_computer, workflow=workflow, user_inputs=user_inputs
         ).model_dump()
 
-        # Use None timeout for streaming connection to prevent timeouts during long-running workflows
-        async with httpx.AsyncClient(timeout=None, follow_redirects=True) as client:
-            async with client.stream(
-                "POST", url, headers=self.headers, json=payload
-            ) as response:
-                response.raise_for_status()
-                _ = response.headers.get("X-Session-ID")
+        # Configure timeouts: connection timeout for initial connection, read timeout for streaming
+        # Use longer timeouts for streaming to handle long-running workflows
+        timeout_config = httpx.Timeout(
+            connect=timeout or 60.0,  # Connection timeout
+            read=None,  # No read timeout for streaming
+            write=30.0,  # Write timeout for sending request
+            pool=None   # No pool timeout
+        )
 
-                async for line in response.aiter_lines():
-                    if not line.strip():
-                        continue
+        # Add keep-alive headers to maintain connection
+        stream_headers = {
+            **self.headers,
+            "Connection": "keep-alive",
+            "Cache-Control": "no-cache",
+            "Accept": "text/event-stream, application/json"
+        }
 
-                    try:
-                        message_data = json.loads(line)
-                        message_type = message_data.get("type")
+        for attempt in range(max_retries + 1):
+            try:
+                async with httpx.AsyncClient(
+                    timeout=timeout_config, 
+                    follow_redirects=True,
+                    limits=httpx.Limits(max_connections=10, max_keepalive_connections=5)
+                ) as client:
+                    async with client.stream(
+                        "POST", url, headers=stream_headers, json=payload
+                    ) as response:
+                        response.raise_for_status()
+                        _ = response.headers.get("X-Session-ID")
 
-                        if message_type == "run_started":
-                            yield RunStartedMessage(type="run_started")
-                        elif message_type == "sequence_started":
-                            yield RunSequenceStartedMessage(
-                                type="sequence_started",
-                                sequence_id=message_data["sequence_id"]
-                            )
-                        elif message_type == "sequence_status":
-                            yield RunSequenceStatusMessage(
-                                type="sequence_status",
-                                sequence_id=message_data["sequence_id"],
-                                success=message_data["success"],
-                                error=message_data.get("error"),
-                            )
-                        elif message_type == "assistant":
-                            yield RunAssistantMessage(
-                                type="assistant", content=message_data["content"]
-                            )
-                        elif message_type == "error":
-                            yield RunErrorMessage(
-                                type="error", error=message_data["error"]
-                            )
-                        elif message_type == "run_completed":
-                            yield RunCompletedMessage(type="run_completed")
-                    except json.JSONDecodeError:
-                        yield RunErrorMessage(
-                            type="error", error=f"Failed to decode message: {line}"
-                        )
+                        try:
+                            async for line in response.aiter_lines():
+                                if not line.strip():
+                                    continue
+
+                                try:
+                                    message_data = json.loads(line)
+                                    message_type = message_data.get("type")
+
+                                    if message_type == "run_started":
+                                        yield RunStartedMessage(type="run_started")
+                                    elif message_type == "sequence_started":
+                                        yield RunSequenceStartedMessage(
+                                            type="sequence_started",
+                                            sequence_id=message_data["sequence_id"]
+                                        )
+                                    elif message_type == "sequence_status":
+                                        yield RunSequenceStatusMessage(
+                                            type="sequence_status",
+                                            sequence_id=message_data["sequence_id"],
+                                            success=message_data["success"],
+                                            error=message_data.get("error"),
+                                        )
+                                    elif message_type == "assistant":
+                                        yield RunAssistantMessage(
+                                            type="assistant", content=message_data["content"]
+                                        )
+                                    elif message_type == "error":
+                                        yield RunErrorMessage(
+                                            type="error", error=message_data["error"]
+                                        )
+                                    elif message_type == "run_completed":
+                                        yield RunCompletedMessage(type="run_completed")
+                                        return  # Successfully completed, exit retry loop
+                                except json.JSONDecodeError:
+                                    yield RunErrorMessage(
+                                        type="error", error=f"Failed to decode message: {line}"
+                                    )
+                        except (httpx.ReadError, httpx.RemoteProtocolError) as e:
+                            # Handle connection drops during streaming
+                            if attempt < max_retries:
+                                yield RunErrorMessage(
+                                    type="error", 
+                                    error=f"Connection interrupted (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. Retrying..."
+                                )
+                                await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                                break  # Break inner try to retry
+                            else:
+                                yield RunErrorMessage(
+                                    type="error", 
+                                    error=f"Connection failed after {max_retries + 1} attempts: {str(e)}"
+                                )
+                                return
+                        
+                        # If we get here, the stream completed successfully
+                        return
+                        
+            except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as e:
+                # Handle initial connection errors
+                if attempt < max_retries:
+                    yield RunErrorMessage(
+                        type="error", 
+                        error=f"Connection error (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. Retrying..."
+                    )
+                    await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                    continue
+                else:
+                    yield RunErrorMessage(
+                        type="error", 
+                        error=f"Failed to connect after {max_retries + 1} attempts: {str(e)}"
+                    )
+                    return
+            except Exception as e:
+                # Handle unexpected errors
+                yield RunErrorMessage(
+                    type="error", 
+                    error=f"Unexpected error: {str(e)}"
+                )
+                return
 
 
 # ----- Main Client Class -----

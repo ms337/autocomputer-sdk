@@ -1,0 +1,105 @@
+{
+  "schema_version": "v1",
+  "workflow_title": "Web Research and Report",
+  "workflow_description": "Research a topic on the web, synthesize findings, and write a short report.",
+  "workflow_computer": {
+    "os": "linux",
+    "computerName": "ac-linux-research",
+    "computerType": "remoteDesktop",
+    "ovaFilePath": "remoteDesktop",
+    "screenConfig": { "width": 1440, "height": 900, "display_num": 0 }
+  },
+  "workflow_inputs": [
+    {
+      "input_title": "Topic",
+      "input_description": "The topic to research",
+      "input_type": "string",
+      "input_name": "topic",
+      "default_value": "vector databases"
+    },
+    {
+      "input_title": "Num Results",
+      "input_description": "How many top sources to review",
+      "input_type": "number",
+      "input_name": "num_results",
+      "default_value": 5
+    },
+    {
+      "input_title": "Output File Path",
+      "input_description": "File path to save the report on the VM",
+      "input_type": "string",
+      "input_name": "output_path",
+      "default_value": "/home/user/research_report.md"
+    }
+  ],
+  "sequences": [
+    {
+      "sequence_title": "Search and Collect",
+      "sequence_id": "search_collect",
+      "sequence_description": "Search the web and collect top results for the topic.",
+      "sequence_inputs": ["topic", "num_results"],
+      "steps": [
+        {
+          "title": "Open Browser and Search",
+          "actions": [
+            "Open the default web browser.",
+            "Search the web for: {topic} top resources",
+            "Review results and open the top {num_results} credible sources in new tabs."
+          ]
+        },
+        {
+          "title": "Skim and Extract Key Points",
+          "actions": [
+            "For each opened source, skim content and extract 3-5 key points.",
+            "Capture source title and URL."
+          ]
+        }
+      ]
+    },
+    {
+      "sequence_title": "Synthesize Findings",
+      "sequence_id": "synthesize",
+      "sequence_description": "Summarize findings across sources into an outline and draft.",
+      "sequence_inputs": ["topic"],
+      "steps": [
+        {
+          "title": "Create Outline",
+          "actions": [
+            "Create a short outline (Introduction, Key Findings, Trade-offs, Conclusion) tailored to: {topic}."
+          ]
+        },
+        {
+          "title": "Draft Summary",
+          "actions": [
+            "Write a concise report (300-600 words) synthesizing the sources, with bullet points where helpful."
+          ]
+        }
+      ]
+    },
+    {
+      "sequence_title": "Write Report to File",
+      "sequence_id": "write_report",
+      "sequence_description": "Write the final report to a file on disk.",
+      "sequence_inputs": ["output_path"],
+      "steps": [
+        {
+          "title": "Save Report",
+          "actions": [
+            "Write the final report to the file path: {output_path} in markdown format, including a Sources section with URLs."
+          ]
+        }
+      ]
+    }
+  ],
+  "workflow_execution_instructions": {
+    "instructions": [],
+    "code": [
+      "async def run_this_workflow(sequences, topic, num_results, output_path):",
+      "  await run_sequence(sequences, sequence_id='search_collect', user_inputs={'topic': topic, 'num_results': num_results})",
+      "  await run_sequence(sequences, sequence_id='synthesize', user_inputs={'topic': topic})",
+      "  await run_sequence(sequences, sequence_id='write_report', user_inputs={'output_path': output_path})"
+    ]
+  }
+}
+
+
