@@ -30,7 +30,8 @@ from autocomputer_sdk.render.messages import render_message
 
 load_dotenv()
 
-DEFAULT_BASE_URL = "https://api.autocomputer.ai"
+BASE_URL = os.getenv("BASE_URL") # use the base URL for your deployment given to you by the AutoComputer team
+API_KEY = os.getenv("AUTOCOMPUTER_API_KEY")
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,7 +39,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--topic", type=str, default="vector databases", help="Topic to research")
     parser.add_argument("--results", type=int, default=5, help="Number of sources to review")
     parser.add_argument("--outfile", type=str, default="/home/user/research_report.md", help="Output file path on VM")
-    parser.add_argument("--base-url", type=str, default=DEFAULT_BASE_URL, help="AutoComputer API base URL")
     parser.add_argument("--download", action="store_true", help="Download the generated report locally after run")
     parser.add_argument("--download-path", type=str, default="./research_report.md", help="Local path to save the report")
     return parser.parse_args()
@@ -47,14 +47,14 @@ def parse_args() -> argparse.Namespace:
 async def main():
     args = parse_args()
 
-    api_key = os.getenv("API_KEY")
+    api_key = os.getenv("AUTOCOMPUTER_API_KEY")
     if not api_key:
         raise RuntimeError("API_KEY environment variable is required")
 
     console = Console()
 
     # Initialize client
-    client = AutoComputerClient(base_url=args.base_url, api_key=api_key)
+    client = AutoComputerClient(base_url=BASE_URL, api_key=API_KEY)
 
     # Load workflow
     workflow_path = os.path.join(

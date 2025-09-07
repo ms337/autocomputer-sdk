@@ -74,7 +74,7 @@ class WorkflowsNamespace(BaseNamespace):
             timeout=timeout,
         ) as client:
             response = await client.get(
-                f"{self.base_url}/workflows", headers=self.headers
+                f"{self.base_url}/workflows/", headers=self.headers
             )
             response.raise_for_status()
             data = response.json()
@@ -108,7 +108,7 @@ class WorkflowsNamespace(BaseNamespace):
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/workflows",
+                f"{self.base_url}/workflows/",
                 headers=self.headers,
                 json=workflow,
                 params=params,

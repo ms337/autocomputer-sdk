@@ -22,17 +22,15 @@ from autocomputer_sdk.types.messages.response import RunMessage
 from autocomputer_sdk.types.workflow import Workflow
 from autocomputer_sdk.validate.workflow_inputs import validate_user_inputs_for_workflow
 
-# Import message renderer from the trellis example
-import sys
-sys.path.append('/Users/madhav/flow/api-sdk/examples/trellis')
+# Import message renderer
 from autocomputer_sdk.render.messages import render_message
 
 load_dotenv()
 
-BASE_URL = "https://flow.gcp-staging.autocomputer-zbpxn.ryvn.run"
-API_KEY = os.getenv("API_KEY")
+BASE_URL = os.getenv("BASE_URL") # use the base URL for your deployment given to you by the AutoComputer team
+API_KEY = os.getenv("AUTOCOMPUTER_API_KEY")
 
-WORKFLOW_FILE = "" # TODO: set this to the path of the workflow file
+WORKFLOW_FILE = os.getenv("WORKFLOW_FILE", "examples/workflows/single_prompt.json")
 
 # Initialize Rich console
 console = Console()
