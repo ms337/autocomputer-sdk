@@ -12,13 +12,13 @@ Features:
 
 import base64
 import json
-import asyncio
 from typing import (
     Any,
     AsyncIterator,
     Dict,
     List,
     Optional,
+    Union,
 )
 
 import httpx
@@ -26,11 +26,15 @@ import httpx
 from autocomputer_sdk.local_namespaces import LocalNamespace
 from autocomputer_sdk.types.computer import (
     ComputerStatusResponse,
+    Config,
     DeletedComputer,
     DownloadedFileResult,
     GetRunningComputer,
     ListedRunningComputer,
+    Provider,
+    RDPGatewayCredentials,
     RunningComputer,
+    StartRDPComputerRequest,
     UploadedFileResult,
 )
 from autocomputer_sdk.types.messages.request import (
@@ -62,6 +66,43 @@ class BaseNamespace:
         self.base_url = client.base_url
         self.headers = client.headers
 
+    @staticmethod
+    def _extract_error_detail(response: httpx.Response) -> Optional[str]:
+        content_type = response.headers.get("content-type", "").lower()
+        if "application/json" in content_type:
+            try:
+                payload = response.json()
+            except ValueError:
+                pass
+            else:
+                detail = payload.get("detail")
+                if isinstance(detail, str):
+                    detail = detail.strip()
+                    if detail:
+                        return detail
+                elif detail is not None:
+                    return str(detail)
+
+        text = response.text.strip()
+        if text:
+            trimmed = text if len(text) <= 500 else f"{text[:497]}..."
+            return trimmed
+        return None
+
+    def _raise_for_status(self, response: httpx.Response) -> None:
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = self._extract_error_detail(response)
+            if detail:
+                message = f"{response.status_code} {response.reason_phrase}: {detail}"
+                raise httpx.HTTPStatusError(
+                    message,
+                    request=exc.request,
+                    response=exc.response,
+                ) from None
+            raise
+
 
 # ----- Workflows Namespace -----
 class WorkflowsNamespace(BaseNamespace):
@@ -74,9 +115,9 @@ class WorkflowsNamespace(BaseNamespace):
             timeout=timeout,
         ) as client:
             response = await client.get(
-                f"{self.base_url}/workflows/", headers=self.headers
+                f"{self.base_url}/workflows", headers=self.headers
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             data = response.json()
             return [
                 WorkflowSummary.model_validate(workflow)
@@ -95,7 +136,7 @@ class WorkflowsNamespace(BaseNamespace):
                 f"{self.base_url}/workflows/{workflow_id}",
                 headers=self.headers,
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             return Workflow.model_validate(response.json())
 
     async def save(
@@ -108,12 +149,12 @@ class WorkflowsNamespace(BaseNamespace):
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/workflows/",
+                f"{self.base_url}/workflows",
                 headers=self.headers,
                 json=workflow,
                 params=params,
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             return WorkflowSummary.model_validate(response.json())
 
     async def delete(self, workflow_id: str, user_id: Optional[str] = None) -> bool:
@@ -128,7 +169,7 @@ class WorkflowsNamespace(BaseNamespace):
                 headers=self.headers,
                 params=params,
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             return True
 
 
@@ -139,7 +180,9 @@ class ComputerNamespace(BaseNamespace):
     """Namespace for remote computer operations."""
 
     async def list(
-        self, timeout: Optional[float] = None
+        self,
+        timeout: Optional[float] = None,
+        provider: Provider = Provider.E2B,
     ) -> List[ListedRunningComputer]:
         """List all available remote computers for the user."""
         async with httpx.AsyncClient(
@@ -147,9 +190,11 @@ class ComputerNamespace(BaseNamespace):
             timeout=timeout,
         ) as client:
             response = await client.get(
-                f"{self.base_url}/computers/", headers=self.headers
+                f"{self.base_url}/computers/",
+                headers=self.headers,
+                params={"provider": provider.value},
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             data = response.json()
             return [
                 ListedRunningComputer.model_validate(computer)
@@ -157,7 +202,10 @@ class ComputerNamespace(BaseNamespace):
             ]
 
     async def get(
-        self, computer_id: str, timeout: Optional[float] = None
+        self,
+        computer_id: str,
+        timeout: Optional[float] = None,
+        provider: Provider = Provider.E2B,
     ) -> GetRunningComputer:
         """Get detailed information about a running computer by ID."""
         async with httpx.AsyncClient(
@@ -167,43 +215,63 @@ class ComputerNamespace(BaseNamespace):
             response = await client.get(
                 f"{self.base_url}/computers/{computer_id}/",
                 headers=self.headers,
+                params={"provider": provider.value},
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             data = response.json()
             return GetRunningComputer.model_validate(data)
 
     async def start(
         self,
-        config: Dict[str, Any],
+        config: Union[Config, Dict[str, Any]],
         template_id: Optional[str] = None,
         sandbox_id: Optional[str] = None,
         vnc_requires_auth: bool = False,
         vnc_view_only: bool = False,
+        provider: Provider = Provider.E2B,
+        rdp: Optional[Union[StartRDPComputerRequest, Dict[str, Any]]] = None,
         timeout: Optional[float] = None,
     ) -> RunningComputer:
         """Start a new remote computer with the given configuration.
 
         Args:
-            config: Configuration for the remote computer
+            config: Configuration for the remote computer (Config object or dict)
             template_id: Optional template ID to use for the computer
+            sandbox_id: Optional sandbox ID to use for the computer (E2B only)
             vnc_requires_auth: Whether VNC requires authentication
             vnc_view_only: Whether VNC is view-only
+            provider: Provider to use (E2B or RDP)
+            rdp: RDP configuration (StartRDPComputerRequest object or dict, required if provider=RDP)
             timeout: Optional timeout for the HTTP request
 
         Returns:
             A RunningComputer instance with connection details
         """
-        payload = {
+        # Convert typed objects to dicts if needed
+        if isinstance(config, Config):
+            config = config.model_dump()
+        
+        if isinstance(rdp, StartRDPComputerRequest):
+            rdp = rdp.model_dump(exclude_none=True)
+        
+        payload: Dict[str, Any] = {
             "config": config,
+            "provider": provider.value,
             "vnc_requires_auth": vnc_requires_auth,
             "vnc_view_only": vnc_view_only,
         }
 
-        if template_id:
-            payload["template_id"] = template_id
-
-        if sandbox_id:
-            payload["sandbox_id"] = sandbox_id
+        if provider == Provider.E2B:
+            if template_id:
+                payload["template_id"] = template_id
+            if sandbox_id:
+                payload["sandbox_id"] = sandbox_id
+        elif provider == Provider.RDP:
+            if rdp is None:
+                raise ValueError("rdp configuration is required when provider='rdp'")
+            payload["rdp"] = rdp
+        else:
+            raise ValueError(f"Unsupported provider {provider}")
 
         async with httpx.AsyncClient(
             follow_redirects=True,
@@ -214,12 +282,15 @@ class ComputerNamespace(BaseNamespace):
                 headers=self.headers,
                 json=payload,
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             data = response.json()
             return RunningComputer.model_validate(data["computer"])
 
     async def delete(
-        self, computer_id: str, timeout: Optional[float] = None
+        self,
+        computer_id: str,
+        timeout: Optional[float] = None,
+        provider: Provider = Provider.E2B,
     ) -> DeletedComputer:
         """Delete a remote computer by ID."""
         async with httpx.AsyncClient(
@@ -229,8 +300,9 @@ class ComputerNamespace(BaseNamespace):
             response = await client.delete(
                 f"{self.base_url}/computers/{computer_id}",
                 headers=self.headers,
+                params={"provider": provider.value},
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             # Response for delete returns a DeleteResponse with message and computer_id
             data = response.json()
             return DeletedComputer.model_validate(data)
@@ -241,6 +313,7 @@ class ComputerNamespace(BaseNamespace):
         file_path: str,
         contents: str,
         timeout: Optional[float] = None,
+        provider: Provider = Provider.E2B,
     ) -> UploadedFileResponse:
         """Upload data to a file on a remote computer.
 
@@ -262,9 +335,10 @@ class ComputerNamespace(BaseNamespace):
             response = await client.post(
                 f"{self.base_url}/computers/{computer_id}/upload",
                 headers=self.headers,
+                params={"provider": provider.value},
                 json=payload.model_dump(),
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             data = response.json()
             return UploadedFileResponse.model_validate(data)
 
@@ -272,10 +346,10 @@ class ComputerNamespace(BaseNamespace):
         self,
         computer_id: str,
         remote_path: str,
-        is_dir: bool,
         max_size_bytes: int = 100 * 1024 * 1024,
-        
+        is_dir: bool = False,
         timeout: Optional[float] = None,
+        provider: Provider = Provider.E2B,
     ) -> DownloadedFileResponse:
         """Download a file or directory from a remote computer.
         
@@ -307,9 +381,10 @@ class ComputerNamespace(BaseNamespace):
             response = await client.post(
                 f"{self.base_url}/computers/{computer_id}/download",
                 headers=self.headers,
+                params={"provider": provider.value},
                 json=payload.model_dump(),
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             data = response.json()
             return DownloadedFileResponse.model_validate(data)
 
@@ -346,7 +421,10 @@ class ComputerNamespace(BaseNamespace):
             return False
 
     async def is_running(
-        self, computer_id: str, timeout: Optional[float] = None
+        self,
+        computer_id: str,
+        timeout: Optional[float] = None,
+        provider: Provider = Provider.E2B,
     ) -> ComputerStatusResponse:
         """Check if a remote computer is running.
 
@@ -364,8 +442,9 @@ class ComputerNamespace(BaseNamespace):
             response = await client.get(
                 f"{self.base_url}/computers/{computer_id}/status",
                 headers=self.headers,
+                params={"provider": provider.value},
             )
-            response.raise_for_status()
+            self._raise_for_status(response)
             data = response.json()
             return ComputerStatusResponse.model_validate(data)
 
@@ -382,8 +461,6 @@ class RunNamespace(BaseNamespace):
         workflow: Workflow,
         user_inputs: Dict[str, Any],
         timeout: Optional[float] = None,
-        max_retries: int = 3,
-        retry_delay: float = 1.0,
     ) -> AsyncIterator[RunMessage]:
         """
         Run a workflow with async streaming responses.
@@ -392,9 +469,7 @@ class RunNamespace(BaseNamespace):
             remote_computer: The RunComputer instance to execute the workflow on
             workflow: The Workflow object containing the workflow definition
             user_inputs: User inputs for the workflow execution
-            timeout: Optional timeout for the initial HTTP connection (default: 60s)
-            max_retries: Maximum number of retry attempts for connection errors (default: 3)
-            retry_delay: Delay between retry attempts in seconds (default: 1.0s)
+            timeout: Optional timeout for the initial HTTP connection (streaming has no timeout)
 
         Returns:
             AsyncIterator of RunMessage objects representing the streaming response
@@ -405,115 +480,50 @@ class RunNamespace(BaseNamespace):
             remote_computer=remote_computer, workflow=workflow, user_inputs=user_inputs
         ).model_dump()
 
-        # Configure timeouts: connection timeout for initial connection, read timeout for streaming
-        # Use longer timeouts for streaming to handle long-running workflows
-        timeout_config = httpx.Timeout(
-            connect=timeout or 60.0,  # Connection timeout
-            read=None,  # No read timeout for streaming
-            write=30.0,  # Write timeout for sending request
-            pool=None   # No pool timeout
-        )
+        # Use None timeout for streaming connection to prevent timeouts during long-running workflows
+        async with httpx.AsyncClient(timeout=None, follow_redirects=True) as client:
+            async with client.stream(
+                "POST", url, headers=self.headers, json=payload
+            ) as response:
+                self._raise_for_status(response)
+                _ = response.headers.get("X-Session-ID")
 
-        # Add keep-alive headers to maintain connection
-        stream_headers = {
-            **self.headers,
-            "Connection": "keep-alive",
-            "Cache-Control": "no-cache",
-            "Accept": "text/event-stream, application/json"
-        }
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
 
-        for attempt in range(max_retries + 1):
-            try:
-                async with httpx.AsyncClient(
-                    timeout=timeout_config, 
-                    follow_redirects=True,
-                    limits=httpx.Limits(max_connections=10, max_keepalive_connections=5)
-                ) as client:
-                    async with client.stream(
-                        "POST", url, headers=stream_headers, json=payload
-                    ) as response:
-                        response.raise_for_status()
-                        _ = response.headers.get("X-Session-ID")
+                    try:
+                        message_data = json.loads(line)
+                        message_type = message_data.get("type")
 
-                        try:
-                            async for line in response.aiter_lines():
-                                if not line.strip():
-                                    continue
-
-                                try:
-                                    message_data = json.loads(line)
-                                    message_type = message_data.get("type")
-
-                                    if message_type == "run_started":
-                                        yield RunStartedMessage(type="run_started")
-                                    elif message_type == "sequence_started":
-                                        yield RunSequenceStartedMessage(
-                                            type="sequence_started",
-                                            sequence_id=message_data["sequence_id"]
-                                        )
-                                    elif message_type == "sequence_status":
-                                        yield RunSequenceStatusMessage(
-                                            type="sequence_status",
-                                            sequence_id=message_data["sequence_id"],
-                                            success=message_data["success"],
-                                            error=message_data.get("error"),
-                                        )
-                                    elif message_type == "assistant":
-                                        yield RunAssistantMessage(
-                                            type="assistant", content=message_data["content"]
-                                        )
-                                    elif message_type == "error":
-                                        yield RunErrorMessage(
-                                            type="error", error=message_data["error"]
-                                        )
-                                    elif message_type == "run_completed":
-                                        yield RunCompletedMessage(type="run_completed")
-                                        return  # Successfully completed, exit retry loop
-                                except json.JSONDecodeError:
-                                    yield RunErrorMessage(
-                                        type="error", error=f"Failed to decode message: {line}"
-                                    )
-                        except (httpx.ReadError, httpx.RemoteProtocolError) as e:
-                            # Handle connection drops during streaming
-                            if attempt < max_retries:
-                                yield RunErrorMessage(
-                                    type="error", 
-                                    error=f"Connection interrupted (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. Retrying..."
-                                )
-                                await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
-                                break  # Break inner try to retry
-                            else:
-                                yield RunErrorMessage(
-                                    type="error", 
-                                    error=f"Connection failed after {max_retries + 1} attempts: {str(e)}"
-                                )
-                                return
-                        
-                        # If we get here, the stream completed successfully
-                        return
-                        
-            except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as e:
-                # Handle initial connection errors
-                if attempt < max_retries:
-                    yield RunErrorMessage(
-                        type="error", 
-                        error=f"Connection error (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. Retrying..."
-                    )
-                    await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
-                    continue
-                else:
-                    yield RunErrorMessage(
-                        type="error", 
-                        error=f"Failed to connect after {max_retries + 1} attempts: {str(e)}"
-                    )
-                    return
-            except Exception as e:
-                # Handle unexpected errors
-                yield RunErrorMessage(
-                    type="error", 
-                    error=f"Unexpected error: {str(e)}"
-                )
-                return
+                        if message_type == "run_started":
+                            yield RunStartedMessage(type="run_started")
+                        elif message_type == "sequence_started":
+                            yield RunSequenceStartedMessage(
+                                type="sequence_started",
+                                sequence_id=message_data["sequence_id"]
+                            )
+                        elif message_type == "sequence_status":
+                            yield RunSequenceStatusMessage(
+                                type="sequence_status",
+                                sequence_id=message_data["sequence_id"],
+                                success=message_data["success"],
+                                error=message_data.get("error"),
+                            )
+                        elif message_type == "assistant":
+                            yield RunAssistantMessage(
+                                type="assistant", content=message_data["content"]
+                            )
+                        elif message_type == "error":
+                            yield RunErrorMessage(
+                                type="error", error=message_data["error"]
+                            )
+                        elif message_type == "run_completed":
+                            yield RunCompletedMessage(type="run_completed")
+                    except json.JSONDecodeError:
+                        yield RunErrorMessage(
+                            type="error", error=f"Failed to decode message: {line}"
+                        )
 
 
 # ----- Main Client Class -----
