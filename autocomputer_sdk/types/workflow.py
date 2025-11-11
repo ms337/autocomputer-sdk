@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class OSName(str, Enum):
@@ -90,6 +90,19 @@ class Workflow(BaseModel):
     workflow_execution_instructions: WorkflowExecution
     workflow_path: Optional[str] = None
     workflow_id: Optional[str] = None  # TODO: make this required later
+    system_prompt: Optional[str] = None
+
+    @field_validator("system_prompt", mode="before")
+    @classmethod
+    def _normalize_system_prompt(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        if isinstance(value, str):
+            trimmed = value.strip()
+            if not trimmed:
+                return None
+            return trimmed
+        raise TypeError("system_prompt must be a string if provided")
 
     @classmethod
     def from_json_string(cls, json_string: str) -> "Workflow":
